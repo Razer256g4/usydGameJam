@@ -1,6 +1,10 @@
 ; Engine configuration file.
-; Platform 0 — Flip the Script game jam baseline.
-; Most config (input map, etc.) is set up in code so this file stays merge-friendly.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 
@@ -26,7 +30,6 @@ window/size/viewport_height=360
 window/size/window_width_override=1280
 window/size/window_height_override=720
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
 
 [physics]
 
