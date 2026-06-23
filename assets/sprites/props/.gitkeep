@@ -1,0 +1,4 @@
+# Prop sprites (sized to each prop's box). Most hero props want TWO states:
+#   <prop>.png        normal / stable
+#   <prop>_leak.png   the truth-leaking variant
+# Assign via the prop data fields: "sprite", "sprite_stable", "sprite_leak".

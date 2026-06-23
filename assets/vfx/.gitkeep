@@ -1,0 +1,3 @@
+# VFX textures: particle dots (dust, static), fog, glitch frames.
+# NOTE: the player lantern light texture is generated at runtime (no file needed) --
+# see Station._setup_darkness(). Drop custom light gradients here to override.

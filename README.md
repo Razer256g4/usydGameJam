@@ -125,6 +125,17 @@ That's a full inverted object: harmless when sedated, accusatory when you're fac
 | `options`, `prompt` | `FINAL_CHOICE` | the ending decision |
 | `becomes_name` | `FLAG_SET` | rename the object after use (e.g. blank sign → WITNESS) |
 | `provider` | live text | name of a `_provide_<x>()` method for state-dependent dialogue |
+| `announce` | all | PA line fired when you interact (reactive announcer) |
+| `sprite` / `sprite_stable` / `sprite_leak` | art | drop-in textures, swapped by reality state (box until the file exists) |
+| `victim` + `stage_sprites` | art | 4 textures keyed to `victim_stage` (none→faceless→partial→revealed) |
+
+### Station-level data fields (top of `_station_data()`)
+| Field | Meaning |
+| --- | --- |
+| `title`, `room_size`, `floor_color`, `entries` | room basics |
+| `on_enter_reality`, `objective`, `announcements`, `ambience` | state + flavour on enter |
+| `dark` (bool), `dark_color`, `light_radius`, `light_energy` | darkness + player lantern (lantern texture is generated at runtime — no art needed) |
+| `sanity_drift` (seconds) | reality slowly slips toward MEMORY_LEAK; pills reset it, so they "wear off" |
 
 ### Add a whole new station
 1. `scripts/world/MyStation.gd` → `extends Station`, override `_station_data()` returning the
@@ -136,11 +147,98 @@ That's a full inverted object: harmless when sedated, accusatory when you're fac
 ---
 
 ## Drop in assets (no code changes needed)
+Every hook below falls back to a placeholder if the file is missing, so the build always runs.
+See `the asset manifest plan` and `CREDITS.md` for the full shopping list + license tracking.
 - **Ambience / SFX:** put `.ogg` files where the data expects them (`audio/ambience/train.ogg`,
   `station1.ogg`, `station2.ogg`, `final.ogg`, `audio/sfx/pill.ogg`). Missing files are ignored.
-- **Art:** the player and props draw placeholder boxes in `_draw()`. Replace by adding a
-  `Sprite2D` / `AnimatedSprite2D` child — movement, collision and interaction are untouched.
-- **Font:** add a project theme with a pixel font for instant polish across all UI.
+- **Prop art:** add `"sprite"` / `"sprite_stable"` / `"sprite_leak"` paths to a prop's data — the
+  texture swaps with reality state automatically (box shows until the file exists).
+- **Victim art:** drop `assets/sprites/characters/victim_0..3.png` — the face resolves as the
+  player remembers, via the `victim` + `stage_sprites` fields (already wired on the passenger).
+- **Player art:** assign a `SpriteFrames` to `sprite_frames` on `Player.tscn` (animations named
+  `idle_`/`walk_` + `down`/`up`/`left`/`right`). `_draw()` box is the fallback.
+- **Tiles:** add a `TileMapLayer` to a station `.tscn`; the procedural floor is the fallback.
+- **Font:** drop a `.ttf` in `fonts/`, open `assets/ui/theme.tres`, set Default Font → applies
+  game-wide (the project already points `gui/theme/custom` at that theme).
+
+## Atmosphere systems already wired
+- **Darkness + lantern:** set `"dark": true` on a station (already on both). Runtime-generated
+  radial light follows the player; UI stays lit. Tune with `light_radius` / `dark_color`.
+- **Truth-leak flash:** every `nudge_truth()` pulses a red screen wash (`Hud.flash()`), driven by
+  the upgraded `reality_overlay.gdshader`. Call `Hud.flash(amount)` for your own beats.
+- **Sanity drift:** `"sanity_drift": 20.0` (on both stations) slips reality toward the truth over
+  time; pills snap it back to STABLE — the pill/denial trade-off now has a clock on it.
+
+---
+
+## Exploration & "the world betrays you" (Iron Lung × Trap Adventure)
+
+A location can be a **multi-room world** the camera scrolls through, full of geometry and props
+that don't behave the way they look. All data-driven — see Station 1 (`StationForgets.gd`) for a
+worked example, and `Station.gd` for the systems.
+
+### `layout` — multi-room maps
+```gdscript
+"layout": {
+    "world_size": Vector2(1400, 600),
+    "floors": [ {"rect": Rect2(...), "color": Color(...)}, ... ],   # visual rooms/hallways
+    "walls":  [ {"rect": Rect2(...), "id": "x", "color": Color(...),
+                 "solid_in": [STABLE, UNCERTAIN]}, ... ],            # interior walls
+},
+```
+- Camera limits expand to `world_size`, so rooms larger than one screen scroll → exploration.
+- A wall with `"solid_in": [states]` is **a passage only the truth can open**: solid in those
+  reality states, gone (and walk-through) otherwise. Omit `solid_in` for a normal wall.
+- `"fake": true` → a wall that **looks solid but has no collision** (walk straight through it).
+  `"invisible_solid": true` → **collision with no visual** (an unseen wall in open space). Space
+  itself lies.
+
+### `holes` — pits & traps (the inversion engine)
+```gdscript
+"holes": [
+    {"rect": Rect2(...), "color": Color(...),   # color is FREE -> looks can lie
+     "respawn": Vector2(...),                   # where falling drops you (default: entry)
+     "reality_min": MEMORY_LEAK,                # optional: only exists once the truth leaks in
+     "announce": "...", "flash": 0.5, "no_fall": false, "effects": [ ... ]},
+]
+```
+The Trap-Adventure move: paint a **harmless floor** to look deadly (a lava/water `floors` patch),
+then make the **inviting "walkway"** a hole with a tidy grey color — the safe-looking path is the
+drop, the scary path is safe. `reality_min` makes a floor that opens into a pit the moment reality
+slips ("that wasn't there a second ago"). `no_fall: true` + `effects` = a trigger that does
+anything without dropping you.
+
+### `events` — trigger zones
+```gdscript
+"events": [
+    {"rect": Rect2(...), "once": true, "requires_flag": "...",
+     "effects": [ {"do": "shake"}, {"do": "announce", "text": "..."} ]},
+]
+```
+Effects (`do`): `move` (a prop, by `to`/`by`), `open`/`close` (a wall `id`), `reveal` (a prop
+`id`), `hole` (spawn one now), `shake`, `flash`, `sound`, `announce`, `set_flag`, `nudge_truth`,
+`objective`, `controls` (`mode`: normal/mirror/invert/swap), `tilt` (`deg`), `zoom` (`to`). Give
+props/walls/holes an `"id"` to target them.
+
+### Flipped controls (`input_mode`)
+Set `"input_mode": "mirror"` (L/R swapped) / `"invert"` / `"swap"` on a station to make the whole
+room control wrong, or use a `controls` event effect for a **zone** that turns you around
+(Station 1's middle corridor does this, with `normal` reset zones on both sides). `GameState`
+resets it to `normal` every room.
+
+### Uncanny prop fields (on any prop)
+| Field | Effect |
+| --- | --- |
+| `moves_when_unseen: true` (+ `move_step`, `move_interval`, `move_min`) | creeps toward you only while off-screen (SCP-173 / "it's closer now") |
+| `hidden_until_reality: MEMORY_LEAK` / `hidden_until_flag: "x"` | the prop doesn't exist until the condition — the friendly thing that *arrives* (+ `reveal_announce`, `reveal_sound`, `reveal_flash`) |
+| `unseen_becomes: { name/color/stable/uncertain/leak }` | the thing is **different when you look back** (changes once, off-screen) |
+| `cycle: [ "...", "..." ]` | a sign/voice that **never says the same thing twice** (each interaction advances) |
+| `prompt_name: "..."` | the interaction prompt **lies** about what the thing is |
+| `announce: "..."` | fires a PA line when interacted (reactive announcer) |
+
+> Authoring tip: keep multi-room layouts mostly **open** with a few wall blocks + doorway gaps
+> (Station 1 uses dividers with a gap at y 236–364). It reads as corridors while guaranteeing the
+> player can never be boxed in.
 
 ---
 

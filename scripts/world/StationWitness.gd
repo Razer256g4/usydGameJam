@@ -13,10 +13,36 @@ func _station_data() -> Dictionary:
 		"floor_color": Color(0.06, 0.07, 0.09),
 		"entries": {"from_train": Vector2(60, 300), "entry": Vector2(60, 300)},
 		"on_enter_reality": GameState.Reality.UNCERTAIN,
+		"dark": true,
+		"dark_color": Color(0.34, 0.36, 0.42),
+		"sanity_drift": 20.0,
 		"objective": "They say nothing happened here, and the footage agrees. Prove otherwise.",
 		"announcements": ["Evidence confirmed. No incident occurred.", "Do not interact with unattended passengers."],
 		"ambience": "res://audio/ambience/station2.ogg",
+		"holes": [
+			# "MIND THE GAP" made literal: a gap that was never there opens once the truth leaks in
+			{"rect": Rect2(240, 330, 200, 26), "color": Color(0.0, 0.0, 0.0, 1.0),
+			 "reality_min": GameState.Reality.MEMORY_LEAK, "respawn": Vector2(60, 300),
+			 "announce": "Mind the gap. There was never a gap here. There is now."},
+		],
+		"events": [
+			# the platform tips, very slightly, toward the rails as you near the edge
+			{"rect": Rect2(220, 316, 220, 32), "once": true,
+			 "effects": [{"do": "tilt", "deg": 9.0}, {"do": "zoom", "to": 1.12, "time": 0.5},
+				{"do": "announce", "text": "The platform tips, very slightly, toward the rails."}]},
+		],
 		"props": [
+			{
+				"kind": Interactable.Kind.EXAMINE, "name": "Service Notice", "pos": Vector2(360, 90),
+				"size": Vector2(44, 26), "color": Color(0.30, 0.30, 0.20), "verb": "Read the",
+				"cycle": [
+					"No incident occurred.",
+					"No incident occurred here.",
+					"No incident occurred here that anyone reported.",
+					"No incident occurred here that you reported.",
+					"You occurred here.",
+				],
+			},
 			{
 				"kind": Interactable.Kind.EXAMINE, "name": "Safety Line", "pos": Vector2(320, 332),
 				"size": Vector2(140, 12), "color": Color(0.50, 0.45, 0.10), "verb": "Read the",
@@ -31,8 +57,9 @@ func _station_data() -> Dictionary:
 			{
 				"kind": Interactable.Kind.EXAMINE, "name": "Commuter", "pos": Vector2(240, 150),
 				"size": Vector2(18, 26), "color": Color(0.20, 0.20, 0.24), "verb": "Speak to the",
+				"moves_when_unseen": true, "move_step": 22.0, "move_interval": 0.7, "move_min": 26.0,
 				"stable": "\"Move along.\"", "uncertain": "\"Didn't see.\"",
-				"leak": "\"You were standing right there.\"",
+				"leak": "\"You were standing right there. You've been right there the whole time.\"",
 			},
 			{
 				"kind": Interactable.Kind.FLAG_SET, "name": "Dropped Phone", "pos": Vector2(430, 265),

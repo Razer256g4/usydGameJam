@@ -44,6 +44,7 @@ func _ready() -> void:
 	GameState.reality_changed.connect(_on_reality)
 	GameState.pills_changed.connect(func(c: int) -> void: _pill_label.text = "PILLS  %d" % c)
 	GameState.objective_changed.connect(func(t: String) -> void: _objective.text = t)
+	GameState.truth_pulse.connect(func() -> void: flash(0.45))
 	_on_reality(GameState.reality)
 	_pill_label.text = "PILLS  %d" % GameState.pills
 
@@ -193,6 +194,17 @@ func _on_reality(state: int) -> void:
 			amount = 0.72
 	if _overlay_mat:
 		_overlay_mat.set_shader_parameter("intensity", amount)
+
+
+## A red truth-leak pulse over the whole screen; fades out on its own.
+func flash(amount: float) -> void:
+	if _overlay_mat == null:
+		return
+	_overlay_mat.set_shader_parameter("flash", amount)
+	var tw := create_tween()
+	tw.tween_method(
+		func(v: float) -> void: _overlay_mat.set_shader_parameter("flash", v),
+		amount, 0.0, 0.5)
 
 
 # ---------------------------------------------------------------- internals

@@ -24,6 +24,31 @@ func _station_data() -> Dictionary:
 			"stable": "A warm seat. You could just stay. The train will take you home.",
 			"uncertain": "If you sit, you get the feeling the doors will never open again.",
 			"leak": "Sitting is how the loop keeps you. Stay on your feet.",
+			"announce": "Please remain seated. This train is for your safety.",
+		},
+		{
+			"kind": Interactable.Kind.EXAMINE, "name": "Emergency Brake", "pos": Vector2(95, 130),
+			"size": Vector2(16, 24), "color": Color(0.55, 0.15, 0.15), "verb": "Pull the",
+			"stable": "PULL IN EMERGENCY. A small printed line beneath: 'disabled for passenger safety'.",
+			"uncertain": "You pull it. Nothing happens. It was never connected to anything.",
+			"leak": "The only emergency is the one they would rather you didn't stop.",
+			"announce": "Emergency brake disabled for your safety. Please remain seated.",
+		},
+		{
+			"kind": Interactable.Kind.EXAMINE, "name": "Route Map", "pos": Vector2(330, 64),
+			"size": Vector2(72, 20), "color": Color(0.20, 0.30, 0.35), "verb": "Study the",
+			"stable": "The line map. Your stop is three stations from here.",
+			"uncertain": "The line map. You can no longer find your stop on it.",
+			"leak": "Every station printed on the map now bears the same name: WITNESS.",
+			"unseen_becomes": {"uncertain": "While you weren't looking, every stop slid one closer to the end of the line."},
+		},
+		{
+			"kind": Interactable.Kind.EXAMINE, "name": "Hand Strap", "pos": Vector2(395, 108),
+			"size": Vector2(10, 22), "color": Color(0.30, 0.30, 0.32), "verb": "Hold the",
+			"moves_when_unseen": true, "move_step": 13.0, "move_interval": 0.9, "move_min": 40.0,
+			"stable": "A hanging hand strap, swaying with the motion of the train.",
+			"uncertain": "A hand strap. It's swaying toward you, against the lean of the train.",
+			"leak": "It swings toward you even when the train is standing perfectly still.",
 		},
 		{
 			"kind": Interactable.Kind.DOOR, "name": "Doors", "pos": Vector2(560, 300),
@@ -38,6 +63,14 @@ func _station_data() -> Dictionary:
 			"kind": Interactable.Kind.EXAMINE, "name": "Passenger", "pos": Vector2(470, 180),
 			"size": Vector2(20, 26), "color": Color(0.12, 0.12, 0.16), "verb": "Approach the",
 			"provider": "victim",
+			# drop in 4 sprites and the face resolves as you remember (box until then):
+			"victim": true,
+			"stage_sprites": [
+				"res://assets/sprites/characters/victim_0.png",
+				"res://assets/sprites/characters/victim_1.png",
+				"res://assets/sprites/characters/victim_2.png",
+				"res://assets/sprites/characters/victim_3.png",
+			],
 		})
 
 	return {

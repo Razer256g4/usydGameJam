@@ -1,0 +1,3 @@
+# Tilesets (16x16). train_tiles.png, station_tiles.png (+ S1/S2 recolors).
+# Build a TileMapLayer inside each *.tscn; Station._build_room keeps a procedural
+# floor as a fallback if no tilemap is present.

@@ -1,0 +1,3 @@
+# Character sprites (16x24, pixel). See README "Adding assets".
+# player_*.png (4-dir idle+walk -> SpriteFrames assigned on Player.tscn),
+# victim_0..3.png (none/faceless/partial/revealed), commuter_*.png, starer.png

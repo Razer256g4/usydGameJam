@@ -1,0 +1,3 @@
+# Pixel fonts (.ttf). Suggested free: m5x7 / m6x11 (Daniel Linssen).
+# Drop a font here, open assets/ui/theme.tres, set Default Font -> applies game-wide
+# (project.godot gui/theme/custom already points at that theme).

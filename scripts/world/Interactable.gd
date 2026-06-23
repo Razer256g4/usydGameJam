@@ -26,6 +26,18 @@ var lines_provider: Callable
 
 var _used := false
 var _label: Label
+var _sprite: Sprite2D       # optional art; null = placeholder box is drawn instead
+var _has_sprite := false    # true only once a real texture has loaded
+
+# uncanny behaviours (data-driven, all optional)
+var _hidden := false                       # hidden_until_flag / hidden_until_reality
+var _dyn := false                          # moves_when_unseen
+var _notifier: VisibleOnScreenNotifier2D
+var _player: Node2D
+var _move_accum := 0.0
+var _cycle_idx := 0                         # for "cycle": the sign never says the same thing twice
+var _was_on_screen := true
+var _unseen_applied := false               # for "unseen_becomes": change once, when you look back
 
 signal interacted(node: Node)
 
@@ -38,7 +50,19 @@ func _ready() -> void:
 	if not data.is_empty():
 		_apply_data()
 	_build_visual()
-	GameState.reality_changed.connect(func(_s: int) -> void: queue_redraw())
+	GameState.reality_changed.connect(_on_reality_changed)
+	if bool(data.get("victim", false)):
+		GameState.victim_changed.connect(func(_st: int) -> void: _refresh_sprite())
+	_refresh_sprite()
+	_setup_hidden()
+	_setup_dynamic()
+	queue_redraw()
+
+
+func _on_reality_changed(_s: int) -> void:
+	_refresh_sprite()
+	if _hidden and _reveal_met():
+		_reveal()
 	queue_redraw()
 
 
@@ -68,8 +92,54 @@ func _build_visual() -> void:
 	_label.position = Vector2(-45, -size.y * 0.5 - 14)
 	add_child(_label)
 
+	# optional art node -- drops in over the placeholder box (box stays as fallback)
+	if _declares_sprite():
+		_sprite = Sprite2D.new()
+		_sprite.centered = true
+		_sprite.z_index = 1
+		add_child(_sprite)
+
+
+## Pick the texture for the current reality / victim stage; falls back to the box if the file
+## isn't present yet, so declaring sprite paths never makes a prop vanish.
+func _refresh_sprite() -> void:
+	if _sprite == null:
+		return
+	var tex := _load_tex(_sprite_path_for_state())
+	_sprite.texture = tex
+	_sprite.visible = tex != null
+	_has_sprite = tex != null
+	queue_redraw()
+
+
+func _sprite_path_for_state() -> String:
+	if bool(data.get("victim", false)):
+		var stages: Array = data.get("stage_sprites", [])
+		if stages.is_empty():
+			return ""
+		return str(stages[clampi(GameState.victim_stage, 0, stages.size() - 1)])
+	match GameState.reality:
+		GameState.Reality.STABLE:
+			return str(data.get("sprite_stable", data.get("sprite", "")))
+		GameState.Reality.MEMORY_LEAK:
+			return str(data.get("sprite_leak", data.get("sprite", "")))
+		_:
+			return str(data.get("sprite", data.get("sprite_stable", "")))
+
+
+func _declares_sprite() -> bool:
+	return data.has("sprite") or data.has("sprite_stable") or data.has("sprite_leak") or data.has("stage_sprites")
+
+
+func _load_tex(path: String) -> Texture2D:
+	if path == "" or not ResourceLoader.exists(path):
+		return null
+	return load(path)
+
 
 func _draw() -> void:
+	if _has_sprite:
+		return   # real art is showing; skip the placeholder
 	var r := Rect2(-size * 0.5, size)
 	draw_rect(r, color)
 	draw_rect(r, color.lightened(0.3), false, 1.0)
@@ -80,10 +150,13 @@ func _draw() -> void:
 
 # ---------------------------------------------------------------- player-facing API
 func prompt_label() -> String:
-	return str(data.get("verb", "Examine")) + " " + display_name
+	# "prompt_name" lets the prompt lie about what a thing is (it reads as a bench; it isn't)
+	return str(data.get("verb", "Examine")) + " " + str(data.get("prompt_name", display_name))
 
 
 func can_interact() -> bool:
+	if _hidden:
+		return false
 	if _used and bool(data.get("one_shot", _default_one_shot())):
 		return false
 	if not _requirements_met():
@@ -101,6 +174,10 @@ func interact() -> void:
 	await _show_text()
 	await _perform()
 	_used = true
+	# reactive announcer: a prop can make the PA respond when you touch it
+	# (e.g. the seat -> "Please remain seated."). Fire-and-forget over the banner.
+	if data.has("announce"):
+		Hud.announce(str(data["announce"]))
 	interacted.emit(self)
 
 
@@ -123,6 +200,13 @@ func _show_text() -> void:
 	if lines_provider.is_valid():
 		await Hud.say_sequence(lines_provider.call())
 		return
+	# "cycle": a sign / voice that refuses to say the same thing twice
+	if data.has("cycle"):
+		var arr: Array = data["cycle"]
+		if not arr.is_empty():
+			await Hud.say(display_name, str(arr[_cycle_idx % arr.size()]))
+			_cycle_idx += 1
+			return
 	var t := _reality_text()
 	if t.strip_edges() != "":
 		await Hud.say(display_name, t)
@@ -154,6 +238,7 @@ func _perform() -> void:
 				display_name = str(data["becomes_name"])
 				if _label:
 					_label.text = display_name
+				_refresh_sprite()
 				queue_redraw()
 		Kind.ROLE_TERMINAL:
 			await _do_role()
@@ -209,3 +294,113 @@ func _do_final() -> void:
 	var picked: String = await Hud.choice(str(data.get("prompt", "...")), options)
 	GameState.pending_ending = GameState.get_ending(picked)
 	SceneDirector.change_scene("res://scenes/ui/EndingScreen.tscn")
+
+
+# ---------------------------------------------------------------- uncanny: hidden until revealed
+## A prop that doesn't exist until a flag/reality condition is met, then "appears" -- the
+## friendly thing that arrives wrong. Set "hidden_until_flag" and/or "hidden_until_reality".
+func _setup_hidden() -> void:
+	if not (data.has("hidden_until_flag") or data.has("hidden_until_reality")):
+		return
+	if data.has("hidden_until_flag"):
+		GameState.flag_changed.connect(_on_flag_for_reveal)
+	_hidden = not _reveal_met()
+	_apply_hidden()
+
+
+func _on_flag_for_reveal(_flag: String, _value: Variant) -> void:
+	if _hidden and _reveal_met():
+		_reveal()
+
+
+func _reveal_met() -> bool:
+	if data.has("hidden_until_flag") and not GameState.has_flag(str(data["hidden_until_flag"])):
+		return false
+	if data.has("hidden_until_reality") and GameState.reality < int(data["hidden_until_reality"]):
+		return false
+	return true
+
+
+func _apply_hidden() -> void:
+	visible = not _hidden
+	monitorable = not _hidden   # the player's detector ignores it while hidden
+
+
+func _reveal() -> void:
+	if not _hidden:
+		return
+	_hidden = false
+	_apply_hidden()
+	if data.has("reveal_sound"):
+		Audio.play_sfx(str(data["reveal_sound"]))
+	if data.has("reveal_announce"):
+		Hud.announce(str(data["reveal_announce"]))
+	Hud.flash(float(data.get("reveal_flash", 0.35)))
+	_refresh_sprite()
+	queue_redraw()
+
+
+## Called by Station events to force a reveal regardless of condition.
+func force_reveal() -> void:
+	_hidden = true   # ensure _reveal() runs its stinger
+	_reveal()
+
+
+# ---------------------------------------------------------------- uncanny: moves when unseen
+## SCP-173 / "that wasn't there before": creeps toward you only while off-screen. Set
+## "moves_when_unseen": true; tune "move_step", "move_interval", "move_min".
+func _setup_dynamic() -> void:
+	_dyn = bool(data.get("moves_when_unseen", false))
+	if not _dyn and not data.has("unseen_becomes"):
+		set_process(false)
+		return
+	_notifier = VisibleOnScreenNotifier2D.new()
+	_notifier.rect = Rect2(-size * 0.5, size)
+	add_child(_notifier)
+	set_process(true)
+
+
+func _process(delta: float) -> void:
+	if _hidden or _notifier == null:
+		return
+	if _player == null or not is_instance_valid(_player):
+		_player = get_tree().get_first_node_in_group("player")
+	var on_screen := _notifier.is_on_screen()
+
+	# changes-when-unseen: it's different when you look back
+	if not _unseen_applied and data.has("unseen_becomes") and on_screen and not _was_on_screen:
+		_apply_unseen_becomes()
+	_was_on_screen = on_screen
+
+	# moves-when-unseen: creeps closer only while you aren't looking
+	if _dyn and _player != null and not on_screen:
+		_move_accum += delta
+		if _move_accum >= float(data.get("move_interval", 0.6)):
+			_move_accum -= float(data.get("move_interval", 0.6))
+			var to_player := _player.global_position - global_position
+			if to_player.length() > float(data.get("move_min", 28.0)):
+				global_position += to_player.normalized() * float(data.get("move_step", 26.0))
+				queue_redraw()
+	elif on_screen:
+		_move_accum = 0.0
+
+
+func _apply_unseen_becomes() -> void:
+	_unseen_applied = true
+	var u: Dictionary = data["unseen_becomes"]
+	if u.has("name"):
+		display_name = str(u["name"])
+		if _label:
+			_label.text = display_name
+	if u.has("color"):
+		color = u["color"]
+	if u.has("stable"):
+		text_stable = str(u["stable"])
+	if u.has("uncertain"):
+		text_uncertain = str(u["uncertain"])
+	if u.has("leak"):
+		text_leak = str(u["leak"])
+	if bool(u.get("flash", true)):
+		Hud.flash(0.3)
+	_refresh_sprite()
+	queue_redraw()

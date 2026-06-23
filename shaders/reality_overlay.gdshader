@@ -5,6 +5,7 @@ shader_type canvas_item;
 
 uniform float intensity : hint_range(0.0, 1.0) = 0.32;
 uniform float vignette_strength : hint_range(0.0, 2.0) = 1.15;
+uniform float flash : hint_range(0.0, 1.0) = 0.0;   // pulsed by Hud.flash() on truth-leak moments
 uniform vec4 tint : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 
 float rand(vec2 c) {
@@ -26,5 +27,10 @@ void fragment() {
 
 	// truth bleeds red into the edges the further reality slips
 	vec3 col = tint.rgb + vec3(0.30, 0.0, 0.02) * (1.0 - vig) * intensity;
+
+	// truth-leak flash: a red wash that Hud fades out after each nudge_truth()
+	col += vec3(0.65, 0.04, 0.05) * flash;
+	a = clamp(a + flash * 0.65, 0.0, 1.0);
+
 	COLOR = vec4(col, a);
 }

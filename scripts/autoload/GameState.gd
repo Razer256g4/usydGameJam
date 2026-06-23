@@ -12,6 +12,7 @@ signal flag_changed(flag: String, value: Variant)
 signal fragments_changed(set_id: String, collected: int, total: int)
 signal objective_changed(text: String)
 signal victim_changed(stage: int)
+signal truth_pulse                          # fired when the truth actually leaks one step further
 
 ## Pills make the world STABLE (safe lies, clues hidden). Avoiding them and chasing the
 ## truth pushes toward MEMORY_LEAK (truth visible, world hostile). This is the spine of the
@@ -31,13 +32,31 @@ var pending_ending: String = ""
 var flags := {}                # String -> Variant
 var _fragments := {}           # set_id -> { "have": Array[String], "total": int }
 
+var drift_enabled := false     # "sanity drift": reality slowly slips back toward the truth
+var _drift_timer: Timer
+
+## How the controls currently betray you: "normal" | "mirror" (L/R swap) | "invert" (both)
+## | "swap" (axes swapped). Set per-room via station data "input_mode" or by an event effect.
+var input_mode := "normal"
+
 
 func _ready() -> void:
 	_setup_input()
+	_drift_timer = Timer.new()
+	_drift_timer.one_shot = false
+	_drift_timer.timeout.connect(_on_drift_tick)
+	add_child(_drift_timer)
+
+
+func _on_drift_tick() -> void:
+	if drift_enabled:
+		nudge_truth()
 
 
 ## Wipe the run for a fresh start / restart.
 func reset() -> void:
+	stop_drift()
+	input_mode = "normal"
 	reality = Reality.UNCERTAIN
 	pills = START_PILLS
 	denial = 0
@@ -72,7 +91,10 @@ func set_reality(state: int) -> void:
 
 ## Truth leaks back even through denial -- nudge one step toward MEMORY_LEAK.
 func nudge_truth() -> void:
+	var before := reality
 	set_reality(mini(reality + 1, Reality.MEMORY_LEAK))
+	if reality != before:
+		truth_pulse.emit()
 
 
 ## Returns false if there were no pills left to take.
@@ -90,6 +112,25 @@ func use_pill() -> bool:
 func add_pills(n: int) -> void:
 	pills += n
 	pills_changed.emit(pills)
+
+
+# ---------------------------------------------------------------- sanity drift
+## Start (or stop, with seconds <= 0) the slow slip toward MEMORY_LEAK. Pills reset reality to
+## STABLE; drift drags it back -- so pills feel like they "wear off". Set per-room via the
+## station data field "sanity_drift" (seconds between nudges).
+func set_drift(seconds: float) -> void:
+	if seconds <= 0.0:
+		stop_drift()
+		return
+	drift_enabled = true
+	_drift_timer.wait_time = seconds
+	_drift_timer.start()
+
+
+func stop_drift() -> void:
+	drift_enabled = false
+	if _drift_timer:
+		_drift_timer.stop()
 
 
 # ---------------------------------------------------------------- fragments
