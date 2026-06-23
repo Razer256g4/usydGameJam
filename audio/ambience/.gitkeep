@@ -1,0 +1,3 @@
+# Drop ambience loops here (.ogg). Referenced by the station data:
+#   train.ogg, station1.ogg, station2.ogg, final.ogg
+# Audio.gd silently ignores any that are missing, so the game runs without them.

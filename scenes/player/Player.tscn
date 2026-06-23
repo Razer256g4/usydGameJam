@@ -1,0 +1,29 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/Player.gd" id="1_player"]
+
+[sub_resource type="RectangleShape2D" id="body_shape"]
+size = Vector2(12, 16)
+
+[sub_resource type="CircleShape2D" id="reach_shape"]
+radius = 24.0
+
+[node name="Player" type="CharacterBody2D"]
+collision_layer = 2
+collision_mask = 1
+script = ExtResource("1_player")
+
+[node name="Body" type="CollisionShape2D" parent="."]
+shape = SubResource("body_shape")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position_smoothing_enabled = true
+position_smoothing_speed = 8.0
+
+[node name="InteractionDetector" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 4
+monitorable = false
+
+[node name="Reach" type="CollisionShape2D" parent="InteractionDetector"]
+shape = SubResource("reach_shape")

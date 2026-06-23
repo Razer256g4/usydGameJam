@@ -1,0 +1,3 @@
+# Drop one-shot SFX here (.ogg/.wav). Referenced in code:
+#   pill.ogg  (Player._try_pill)
+# Add more and call Audio.play_sfx("res://audio/sfx/<name>.ogg") from anywhere.
